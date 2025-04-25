@@ -8,7 +8,8 @@ export class GithubCacheQuery implements IRepoQuery {
   constructor(
     private githubRepoQuery: IRepoQuery,
     private repositoryUrl: string,
-    private client: PoolClient | Client
+    private client: PoolClient | Client,
+    private timeoutTime = 1000 * 60 * 60 * 24
   ) {}
   async getRepo() {
     const { owner, repo } = extractRepoFromUrl(this.repositoryUrl)
@@ -22,17 +23,26 @@ export class GithubCacheQuery implements IRepoQuery {
     if (repoRows.length === 0) {
       return this.githubRepoQuery.getRepo()
     }
-    const [{ owner: dbOwner, repo_name, github_id, id }] = repoRows
+    const [{ owner: dbOwner, repo_name, github_id, id, last_release_check }] =
+      repoRows
     return {
       owner: dbOwner,
       repo: repo_name,
       githubId: github_id,
       id,
+      lastReleaseCheck: last_release_check,
     }
   }
   async listReleases(options: IListReleaseOptions) {
     const repo = await this.getRepo()
+
     if (repo.id) {
+      const isTimedOut =
+        repo.lastReleaseCheck &&
+        Date.now() - repo.lastReleaseCheck.getTime() > this.timeoutTime
+      if (repo.lastReleaseCheck && isTimedOut) {
+        return this.githubRepoQuery.listReleases(options)
+      }
       const releases = await getReleases.run(
         {
           repo_id: repo.id,
@@ -41,7 +51,7 @@ export class GithubCacheQuery implements IRepoQuery {
         this.client
       )
       if (releases.length) {
-        return releases.map((r) => ({
+        return releases.map(r => ({
           body: r.body,
           createdAt: r.release_created_at.toISOString(),
           id: r.github_id,

@@ -1,10 +1,14 @@
 import { beforeAll, afterAll, describe, it, expect, beforeEach } from 'vitest'
 import { PostgreSqlContainer } from '@testcontainers/postgresql'
 import { Client } from 'pg'
-import { createRepo } from '../../queries/repos.queries'
 import { initDb } from '../../lib/db'
 import { GithubCacheQuery } from './githubReadCacheQuery'
-import { IListReleaseOptions, IRelease, IRepo, IRepoQuery } from './github.types'
+import {
+  IListReleaseOptions,
+  IRelease,
+  IRepo,
+  IRepoQuery,
+} from './github.types'
 
 // Mock implementation of IRepoQuery for testing
 class MockGithubRepoQuery implements IRepoQuery {
@@ -41,7 +45,7 @@ class MockGithubRepoQuery implements IRepoQuery {
 
   async listReleases(options: IListReleaseOptions): Promise<IRelease[]> {
     if (options.includePrereleases === false) {
-      return this.releases.filter((release) => !release.prerelease)
+      return this.releases.filter(release => !release.prerelease)
     }
     return this.releases
   }
@@ -80,15 +84,18 @@ describe('GithubCacheQuery', () => {
     it('should retrieve data from the database if it exists', async () => {
       const mockGithubRepoQuery = new MockGithubRepoQuery()
 
-      // First, add a repo to the database
-      await createRepo.run(
-        {
-          githubId: 12345,
-          owner: 'testowner',
-          repoName: 'testrepo',
-        },
-        client
-      )
+      // First, add a repo to the database using direct SQL
+      await client.query(`
+        INSERT INTO repos (id, github_id, owner, repo_name, created_at, last_updated)
+        VALUES (
+          gen_random_uuid(),
+          12345,
+          'testowner',
+          'testrepo',
+          NOW(),
+          NOW()
+        )
+      `)
 
       // Create a read cache query with a repository URL that matches the saved repo
       const githubReadCacheQuery = new GithubCacheQuery(
@@ -127,43 +134,251 @@ describe('GithubCacheQuery', () => {
   })
 
   describe('listReleases', () => {
-    it('should always delegate to the wrapped query', async () => {
-      const mockGithubRepoQuery = new MockGithubRepoQuery()
+    it('should retrieve releases from database if they exist and are not timed out', async () => {
+      // Add a repo to the database
+      const repoResult = await client.query(`
+        INSERT INTO repos (id, github_id, owner, repo_name, created_at, last_updated, last_release_check)
+        VALUES (
+          gen_random_uuid(),
+          12345,
+          'testowner',
+          'testrepo',
+          NOW(),
+          NOW(),
+          NOW()
+        )
+        RETURNING id
+      `)
+      const repoId = repoResult.rows[0].id
 
-      // Create a read cache query
+      // Add a release to the database
+      await client.query(
+        `
+        INSERT INTO github_releases (
+          id,
+          repo_id,
+          github_id,
+          name,
+          tag_name,
+          prerelease,
+          body,
+          url,
+          release_created_at,
+          created_at,
+          last_updated
+        )
+        VALUES (
+          gen_random_uuid(),
+          $1,
+          100,
+          'DB Release 1.0.0',
+          'v1.0.0',
+          false,
+          'Database release',
+          'https://github.com/testowner/testrepo/releases/tag/v1.0.0',
+          '2023-01-01T00:00:00Z',
+          NOW(),
+          NOW()
+        )
+      `,
+        [repoId]
+      )
+
+      const mockGithubRepoQuery = new MockGithubRepoQuery()
       const githubReadCacheQuery = new GithubCacheQuery(
         mockGithubRepoQuery,
         'https://github.com/testowner/testrepo',
         client
       )
 
-      // Should get all releases
-      const result = await githubReadCacheQuery.listReleases({ includePrereleases: true })
+      const result = await githubReadCacheQuery.listReleases({
+        includePrereleases: false,
+      })
 
-      expect(result.length).toBe(2)
-      expect(result[0].id).toBe(100)
-      expect(result[0].name).toBe('Release 1.0.0')
-      expect(result[1].id).toBe(101)
-      expect(result[1].name).toBe('Release 1.1.0-beta')
+      // Should return database results, not mock results
+      expect(result.length).toBe(1)
+      expect(result[0].name).toBe('DB Release 1.0.0')
+      expect(result[0].dbRepoId).toBe(repoId)
     })
 
-    it('should respect the includePrereleases option', async () => {
-      const mockGithubRepoQuery = new MockGithubRepoQuery()
+    it('should fallback to wrapped query if no releases in database', async () => {
+      // Add a repo but no releases
+      await client.query(`
+        INSERT INTO repos (id, github_id, owner, repo_name, created_at, last_updated, last_release_check)
+        VALUES (
+          gen_random_uuid(),
+          12345,
+          'testowner',
+          'testrepo',
+          NOW(),
+          NOW(),
+          NOW()
+        )
+      `)
 
-      // Create a read cache query
+      const mockGithubRepoQuery = new MockGithubRepoQuery()
       const githubReadCacheQuery = new GithubCacheQuery(
         mockGithubRepoQuery,
         'https://github.com/testowner/testrepo',
         client
       )
 
-      // Should filter out prereleases
-      const result = await githubReadCacheQuery.listReleases({ includePrereleases: false })
+      const result = await githubReadCacheQuery.listReleases({
+        includePrereleases: false,
+      })
 
+      // Should fall back to mock results
       expect(result.length).toBe(1)
-      expect(result[0].id).toBe(100)
-      expect(result[0].name).toBe('Release 1.0.0')
-      expect(result[0].prerelease).toBe(false)
+      expect(result[0].name).toBe('Release 1.0.0') // This is from the mock, not DB
+    })
+
+    it('should fallback to wrapped query if cache is timed out', async () => {
+      // Set a 1 second timeout
+      const oneSecondTimeout = 1000
+
+      // Create a past date (5 seconds ago)
+      const pastDate = new Date()
+      pastDate.setSeconds(pastDate.getSeconds() - 5)
+
+      // Add a repo with an old last_release_check
+      const repoResult = await client.query(
+        `
+        INSERT INTO repos (id, github_id, owner, repo_name, created_at, last_updated, last_release_check)
+        VALUES (
+          gen_random_uuid(),
+          12345,
+          'testowner',
+          'testrepo',
+          NOW(),
+          NOW(),
+          $1
+        )
+        RETURNING id
+      `,
+        [pastDate]
+      )
+      const repoId = repoResult.rows[0].id
+
+      // Add a release
+      await client.query(
+        `
+        INSERT INTO github_releases (
+          id,
+          repo_id,
+          github_id,
+          name,
+          tag_name,
+          prerelease,
+          body,
+          url,
+          release_created_at,
+          created_at,
+          last_updated
+        )
+        VALUES (
+          gen_random_uuid(),
+          $1,
+          200,
+          'Old Release',
+          'v1.0.0',
+          false,
+          'Old release',
+          'https://github.com/testowner/testrepo/releases/tag/v1.0.0',
+          $2,
+          NOW(),
+          NOW()
+        )
+      `,
+        [repoId, pastDate]
+      )
+
+      const mockGithubRepoQuery = new MockGithubRepoQuery()
+      const githubReadCacheQuery = new GithubCacheQuery(
+        mockGithubRepoQuery,
+        'https://github.com/testowner/testrepo',
+        client,
+        oneSecondTimeout // 1 second timeout
+      )
+
+      const result = await githubReadCacheQuery.listReleases({
+        includePrereleases: false,
+      })
+
+      // Should return mock data, not database data
+      expect(result.length).toBe(1)
+      expect(result[0].name).toBe('Release 1.0.0') // From mock, not database
+      expect(result[0].name).not.toBe('Old Release') // Making sure it's not from DB
+    })
+
+    it('should use cached data when within timeout period', async () => {
+      // Set a long timeout
+      const oneDayTimeout = 1000 * 60 * 60 * 24
+
+      // Add a repo with a recent last_release_check
+      const repoResult = await client.query(`
+        INSERT INTO repos (id, github_id, owner, repo_name, created_at, last_updated, last_release_check)
+        VALUES (
+          gen_random_uuid(),
+          12345,
+          'testowner',
+          'testrepo',
+          NOW(),
+          NOW(),
+          NOW()
+        )
+        RETURNING id
+      `)
+      const repoId = repoResult.rows[0].id
+
+      // Add a release
+      await client.query(
+        `
+        INSERT INTO github_releases (
+          id,
+          repo_id,
+          github_id,
+          name,
+          tag_name,
+          prerelease,
+          body,
+          url,
+          release_created_at,
+          created_at,
+          last_updated
+        )
+        VALUES (
+          gen_random_uuid(),
+          $1,
+          300,
+          'Recent Release',
+          'v2.0.0',
+          false,
+          'Recent release',
+          'https://github.com/testowner/testrepo/releases/tag/v2.0.0',
+          NOW(),
+          NOW(),
+          NOW()
+        )
+      `,
+        [repoId]
+      )
+
+      const mockGithubRepoQuery = new MockGithubRepoQuery()
+      const githubReadCacheQuery = new GithubCacheQuery(
+        mockGithubRepoQuery,
+        'https://github.com/testowner/testrepo',
+        client,
+        oneDayTimeout // 1 day timeout
+      )
+
+      const result = await githubReadCacheQuery.listReleases({
+        includePrereleases: false,
+      })
+
+      // Should return database results since cache is within timeout
+      expect(result.length).toBe(1)
+      expect(result[0].name).toBe('Recent Release') // From database
+      expect(result[0].dbRepoId).toBe(repoId)
     })
   })
 })

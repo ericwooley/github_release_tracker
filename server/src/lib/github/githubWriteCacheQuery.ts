@@ -8,7 +8,7 @@ export class GithubWriteCacheQuery implements IRepoQuery {
   constructor(
     private githubRepoQuery: IRepoQuery,
     private client: PoolClient | Client,
-    private releaseQueue: Queue | null
+    private releaseQueue: Queue | null = null
   ) {}
   async getRepo() {
     const repo = await this.githubRepoQuery.getRepo()

@@ -1,10 +1,14 @@
 import { beforeAll, afterAll, describe, it, expect, beforeEach } from 'vitest'
 import { PostgreSqlContainer } from '@testcontainers/postgresql'
 import { Client } from 'pg'
-import { createRepo } from './githubCache.queries'
 import { initDb } from '../../lib/db'
 import { GithubWriteCacheQuery } from './githubWriteCacheQuery'
-import { IListReleaseOptions, IRelease, IRepo, IRepoQuery } from './github.types'
+import {
+  IListReleaseOptions,
+  IRelease,
+  IRepo,
+  IRepoQuery,
+} from './github.types'
 
 // Mock implementation of IRepoQuery for testing
 class MockGithubRepoQuery implements IRepoQuery {
@@ -41,7 +45,7 @@ class MockGithubRepoQuery implements IRepoQuery {
 
   async listReleases(options: IListReleaseOptions): Promise<IRelease[]> {
     if (options.includePrereleases === false) {
-      return this.releases.filter((release) => !release.prerelease)
+      return this.releases.filter(release => !release.prerelease)
     }
     return this.releases
   }
@@ -79,7 +83,10 @@ describe('GithubWriteCacheQuery', () => {
   describe('getRepo', () => {
     it('should get repo info from the wrapped query and write to database', async () => {
       const mockGithubRepoQuery = new MockGithubRepoQuery()
-      const githubWriteCacheQuery = new GithubWriteCacheQuery(mockGithubRepoQuery, client)
+      const githubWriteCacheQuery = new GithubWriteCacheQuery(
+        mockGithubRepoQuery,
+        client
+      )
       const result = await githubWriteCacheQuery.getRepo()
 
       expect(result.owner).toBe('testowner')
@@ -87,7 +94,10 @@ describe('GithubWriteCacheQuery', () => {
       expect(result.githubId).toBe(12345)
       expect(result.id).toBeDefined()
 
-      const dbResult = await client.query('SELECT * FROM repos WHERE github_id = $1', [12345])
+      const dbResult = await client.query(
+        'SELECT * FROM repos WHERE github_id = $1',
+        [12345]
+      )
       expect(dbResult.rows.length).toBe(1)
       expect(dbResult.rows[0].owner).toBe('testowner')
       expect(dbResult.rows[0].repo_name).toBe('testrepo')
@@ -96,12 +106,18 @@ describe('GithubWriteCacheQuery', () => {
 
     it('should return the same id that was written to the database', async () => {
       const mockGithubRepoQuery = new MockGithubRepoQuery()
-      const githubWriteCacheQuery = new GithubWriteCacheQuery(mockGithubRepoQuery, client)
+      const githubWriteCacheQuery = new GithubWriteCacheQuery(
+        mockGithubRepoQuery,
+        client
+      )
 
       const result = await githubWriteCacheQuery.getRepo()
 
       // Query the database directly to compare IDs
-      const dbResult = await client.query('SELECT * FROM repos WHERE github_id = $1', [12345])
+      const dbResult = await client.query(
+        'SELECT * FROM repos WHERE github_id = $1',
+        [12345]
+      )
 
       expect(result.id).toBe(dbResult.rows[0].id)
     })
@@ -110,9 +126,14 @@ describe('GithubWriteCacheQuery', () => {
   describe('listReleases', () => {
     it('should store releases in the database and return them in the correct format', async () => {
       const mockGithubRepoQuery = new MockGithubRepoQuery()
-      const githubWriteCacheQuery = new GithubWriteCacheQuery(mockGithubRepoQuery, client)
+      const githubWriteCacheQuery = new GithubWriteCacheQuery(
+        mockGithubRepoQuery,
+        client
+      )
 
-      const result = await githubWriteCacheQuery.listReleases({ includePrereleases: true })
+      const result = await githubWriteCacheQuery.listReleases({
+        includePrereleases: true,
+      })
 
       // Verify we got both releases back
       expect(result.length).toBe(2)
@@ -123,7 +144,9 @@ describe('GithubWriteCacheQuery', () => {
       expect(result[0].tagName).toBe('v1.0.0')
       expect(result[0].prerelease).toBe(false)
       expect(result[0].body).toBe('First stable release')
-      expect(result[0].url).toBe('https://github.com/testowner/testrepo/releases/tag/v1.0.0')
+      expect(result[0].url).toBe(
+        'https://github.com/testowner/testrepo/releases/tag/v1.0.0'
+      )
       expect(result[0].databaseId).toBeDefined()
 
       // Check database for releases
@@ -131,7 +154,7 @@ describe('GithubWriteCacheQuery', () => {
       expect(dbResults.rows.length).toBe(2)
 
       // Should match the order from our mock
-      const firstDbRelease = dbResults.rows.find((r) => r.github_id === 100)
+      const firstDbRelease = dbResults.rows.find(r => r.github_id === 100)
       expect(firstDbRelease).toBeDefined()
       expect(firstDbRelease.tag_name).toBe('v1.0.0')
       expect(firstDbRelease.name).toBe('Release 1.0.0')
@@ -140,9 +163,15 @@ describe('GithubWriteCacheQuery', () => {
 
     it('should filter prereleases when includePrereleases is false', async () => {
       const mockGithubRepoQuery = new MockGithubRepoQuery()
-      const githubWriteCacheQuery = new GithubWriteCacheQuery(mockGithubRepoQuery, client)
+      const githubWriteCacheQuery = new GithubWriteCacheQuery(
+        mockGithubRepoQuery,
+        client,
+        null
+      )
 
-      const result = await githubWriteCacheQuery.listReleases({ includePrereleases: false })
+      const result = await githubWriteCacheQuery.listReleases({
+        includePrereleases: false,
+      })
 
       // Should only include the stable release
       expect(result.length).toBe(1)
@@ -157,7 +186,11 @@ describe('GithubWriteCacheQuery', () => {
 
     it('should retrieve releases after storing them in the database', async () => {
       const mockGithubRepoQuery = new MockGithubRepoQuery()
-      const githubWriteCacheQuery = new GithubWriteCacheQuery(mockGithubRepoQuery, client)
+      const githubWriteCacheQuery = new GithubWriteCacheQuery(
+        mockGithubRepoQuery,
+        client,
+        null
+      )
 
       // First call stores in database
       await githubWriteCacheQuery.listReleases({ includePrereleases: true })
@@ -166,20 +199,24 @@ describe('GithubWriteCacheQuery', () => {
       // Check that we can get releases from database
       const dbResults = await client.query('SELECT * FROM github_releases')
 
-      const releaseIds = dbResults.rows.map((r) => r.github_id)
+      const releaseIds = dbResults.rows.map(r => r.github_id)
       const databaseIds = dbResults.rows.map(({ id }) => id)
       expect(releaseIds).toContain(100)
       expect(releaseIds).toContain(101)
 
       // The database IDs should match the ones returned in the result
-      const secondCallResult = await githubWriteCacheQuery.listReleases({ includePrereleases: true })
+      const secondCallResult = await githubWriteCacheQuery.listReleases({
+        includePrereleases: true,
+      })
 
-      const seecondDbResults = await client.query('SELECT * FROM github_releases')
+      const seecondDbResults = await client.query(
+        'SELECT * FROM github_releases'
+      )
       expect(seecondDbResults.rowCount).toEqual(2)
       expect(secondCallResult[0].databaseId).toBeDefined()
 
       // Find matched database rows
-      const firstDbRelease = dbResults.rows.find((r) => r.github_id === 100)
+      const firstDbRelease = dbResults.rows.find(r => r.github_id === 100)
       expect(secondCallResult[0].databaseId).toBe(firstDbRelease.id)
     })
   })

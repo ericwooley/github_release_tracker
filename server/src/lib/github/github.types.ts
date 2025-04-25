@@ -14,6 +14,7 @@ export interface IRepo {
    * This is the id github gives to us
    */
   githubId: number
+  lastReleaseCheck?: Date | null
 }
 export interface IRelease {
   id: number
