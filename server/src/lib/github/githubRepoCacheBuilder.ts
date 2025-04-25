@@ -1,30 +1,60 @@
 import { Client, PoolClient } from 'pg'
 import { IRepoQuery } from './github.types'
-import { GithubRepoQuery } from './githubRepoQuery'
+import { GithubRepoQuery } from './GithubRepoQuery'
 import { GithubWriteCacheQuery } from './githubWriteCacheQuery'
 import { GithubCacheQuery } from './githubReadCacheQuery'
+import { getReleaseQueue } from '../queues/releaseQueue'
 
 export class GithubRepoCacheBuilder {
   private enableReadCache: boolean = false
   private enableWriteCache: boolean = false
   private sourceOfTruth?: IRepoQuery
+  private enableReleaseQueue?: boolean = false
   private accessKey?: string
   constructor(private repoUrl: string, private client: PoolClient | Client) {}
 
-  static readonly(repoUrl: string, client: PoolClient | Client): GithubRepoCacheBuilder {
-    return new GithubRepoCacheBuilder(repoUrl, client).withReadCache(true).withWriteCache(false)
+  static readonly(
+    repoUrl: string,
+    client: PoolClient | Client
+  ): GithubRepoCacheBuilder {
+    return new GithubRepoCacheBuilder(repoUrl, client)
+      .withReadCache(true)
+      .withWriteCache(false)
   }
 
-  static writeOnly(repoUrl: string, client: PoolClient | Client): GithubRepoCacheBuilder {
-    return new GithubRepoCacheBuilder(repoUrl, client).withReadCache(false).withWriteCache(true)
+  static writeOnly(
+    repoUrl: string,
+    client: PoolClient | Client
+  ): GithubRepoCacheBuilder {
+    return new GithubRepoCacheBuilder(repoUrl, client)
+      .withReadCache(false)
+      .withWriteCache(true)
   }
 
-  static noCache(repoUrl: string, client: PoolClient | Client): GithubRepoCacheBuilder {
-    return new GithubRepoCacheBuilder(repoUrl, client).withReadCache(false).withWriteCache(false)
+  static noCache(
+    repoUrl: string,
+    client: PoolClient | Client
+  ): GithubRepoCacheBuilder {
+    return new GithubRepoCacheBuilder(repoUrl, client)
+      .withReadCache(false)
+      .withWriteCache(false)
   }
-
-  static fullCache(repoUrl: string, client: PoolClient | Client): GithubRepoCacheBuilder {
-    return new GithubRepoCacheBuilder(repoUrl, client).withReadCache(true).withWriteCache(true)
+  static fullCache(
+    repoUrl: string,
+    client: PoolClient | Client
+  ): GithubRepoCacheBuilder {
+    return new GithubRepoCacheBuilder(repoUrl, client)
+      .withReadCache(true)
+      .withWriteCache(true)
+  }
+  static fullyLoaded(
+    repoUrl: string,
+    client: PoolClient | Client
+  ): GithubRepoCacheBuilder {
+    return new GithubRepoCacheBuilder(repoUrl, client)
+      .withReadCache(true)
+      .withWriteCache(true)
+      .withReleaseQueuePushing(true)
   }
 
   withAccessKey = (key: string) => {
@@ -47,6 +77,10 @@ export class GithubRepoCacheBuilder {
     return this
   }
 
+  withReleaseQueuePushing(enabled: boolean = true) {
+    this.enableReleaseQueue = enabled
+    return this
+  }
   build() {
     // The source of truth could be one that the user supplied (useful for testing)
     // Otherwise, we will default to the GithubRepoQuery which hits the github
@@ -64,7 +98,15 @@ export class GithubRepoCacheBuilder {
     // from the source of truth, then we wrap the source of truth in the write
     // cache decorator
     if (this.enableWriteCache) {
-      finalBuild = new GithubWriteCacheQuery(sourceOfTruth, this.client)
+      let releaseQueue = null
+      if (this.enableReleaseQueue) {
+        releaseQueue = getReleaseQueue()
+      }
+      finalBuild = new GithubWriteCacheQuery(
+        sourceOfTruth,
+        this.client,
+        releaseQueue
+      )
     }
     // If the user wants to check the database before going to github, this
     // decorator does that.

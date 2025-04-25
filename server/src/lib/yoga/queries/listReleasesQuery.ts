@@ -7,7 +7,10 @@ export const listReleases = query(
   'listReleases',
   async (_, { repositoryUrl, includePrereleases, markViewed }, { user, pgClient }) => {
     const accessKey = await getAccessKey(user.id, pgClient)
-    let result = await GithubRepoCacheBuilder.fullCache(repositoryUrl, pgClient)
+    let result = await GithubRepoCacheBuilder.fullyLoaded(
+      repositoryUrl,
+      pgClient
+    )
       .withAccessKey(accessKey)
       .build()
       .listReleases({

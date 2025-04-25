@@ -4,7 +4,12 @@ import { mutation } from '../yogaHelpers'
 import { userFollowsRepository, userUnfollowsRepository } from './repositoryMutations.queries'
 export const followRepository = mutation('followRepository', async (_, { repositoryUrl }, { user, pgClient }) => {
   const accessKey = await getAccessKey(user.id, pgClient)
-  const githubRepoQuery = GithubRepoCacheBuilder.fullCache(repositoryUrl, pgClient).withAccessKey(accessKey).build()
+  const githubRepoQuery = GithubRepoCacheBuilder.fullyLoaded(
+    repositoryUrl,
+    pgClient
+  )
+    .withAccessKey(accessKey)
+    .build()
   let [repo, err] = await tryCatch(githubRepoQuery.getRepo())
   if (err) {
     console.error('error getting repo', err)
@@ -44,7 +49,12 @@ export const followRepository = mutation('followRepository', async (_, { reposit
 })
 export const unfollowRepository = mutation('followRepository', async (_, { repositoryUrl }, { user, pgClient }) => {
   const accessKey = await getAccessKey(user.id, pgClient)
-  const githubRepoQuery = GithubRepoCacheBuilder.fullCache(repositoryUrl, pgClient).withAccessKey(accessKey).build()
+  const githubRepoQuery = GithubRepoCacheBuilder.fullyLoaded(
+    repositoryUrl,
+    pgClient
+  )
+    .withAccessKey(accessKey)
+    .build()
   let [repo, err] = await tryCatch(githubRepoQuery.getRepo())
   if (err) {
     console.error('error getting repo', err)

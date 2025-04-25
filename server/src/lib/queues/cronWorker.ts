@@ -50,7 +50,7 @@ export function getCronWorker() {
 
             const url = `https://github.com/${repo.owner}/${repo.repo_name}`
 
-            const repoQuery = GithubRepoCacheBuilder.fullCache(
+            const repoQuery = GithubRepoCacheBuilder.fullyLoaded(
               url,
               client
             ).build()

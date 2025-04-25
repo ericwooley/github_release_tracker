@@ -65,7 +65,6 @@ export class GithubWriteCacheQuery implements IRepoQuery {
         let newReleases = resultFromDb.filter(({ inserted }) => inserted)
         if (newReleases.length) {
           for (let release of newReleases) {
-            console.warn('Found new release', release)
             this.releaseQueue.add('notify-of-release', {
               release,
               receivedAt: new Date().toISOString(),

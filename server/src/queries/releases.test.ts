@@ -35,7 +35,7 @@ afterAll(async () => {
 
 describe('releases', () => {
   describe('createReleases', () => {
-    it('should create a new github release entry', async () => {
+    it('should create a new github release entry and set inserted to true (xmax = 0)', async () => {
       // First create a repo entry
       const [{ id: repoId }] = await createRepo.run(
         { githubId: 123456, owner: 'testowner', repoName: 'testrepo' },
@@ -70,9 +70,10 @@ describe('releases', () => {
       expect(result[0].id).toBeDefined()
       expect(result[0].body).toBeDefined()
       expect(result[0].url).toBeDefined()
+      expect(result[0].inserted).toBe(true)
     })
 
-    it('should update an existing github release entry', async () => {
+    it('should update an existing github release entry and set inserted to false (xmax != 0)', async () => {
       // First create a repo entry
       const [{ id: repoId }] = await createRepo.run(
         {
@@ -129,6 +130,7 @@ describe('releases', () => {
       expect(updatedRelease[0].name).toBe('Updated Release 1.0.1')
       expect(updatedRelease[0].prerelease).toBe(true)
       expect(updatedRelease[0].id).toBe(initialRelease[0].id)
+      expect(updatedRelease[0].inserted).toBe(false)
     })
 
     it('should handle multiple releases for the same repo with different ids', async () => {

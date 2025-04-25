@@ -68,6 +68,84 @@ The GitHub integration layer facilitates interaction with GitHub's API and imple
 
 [See the README in src/lib/github](./src/lib/github)
 
+### Queue System Architecture
+The application uses BullMQ with Redis for background job processing. This system handles scheduled tasks, GitHub data fetching, and email notifications.
+
+```mermaid
+flowchart TD
+    cron[cron.ts] -->|schedules jobs| cronQ[Cron Queue]
+    cronQ -->|processes jobs| cronW[Cron Worker]
+    cronW -->|fetches repos| github[GitHub API]
+    cronW -->|caches data| DB[(PostgreSQL)]
+
+    github -->|release data| cache[githubWriteCacheQuery.ts]
+    cache -->|new releases| releaseQ[Release Queue]
+    releaseQ -->|processes notifications| releaseW[Release Worker]
+    DB -->|gets subscribers| releaseW
+    releaseW -->|queues emails| emailQ[Email Queue]
+    emailQ -->|sends emails| emailW[Email Worker]
+    emailW -->|delivers| email[SMTP Server]
+```
+
+#### Queue Components:
+
+1. **Cron Queue System**:
+   - `cronQueue.ts`: Defines a BullMQ queue for scheduled jobs
+   - `cronWorker.ts`: Processes scheduled jobs to check for new releases
+   - Triggered by `cron.ts` on a configurable schedule (CRON_SCHEDULE env variable)
+   - Fetches repositories in order of least recently checked
+   - Handles GitHub rate limiting with exponential backoff
+
+2. **Release Queue System**:
+   - `releaseQueue.ts`: Manages notifications for new releases
+   - `releaseWorker.ts`: Processes release notifications, finding subscribers and queueing emails
+   - Triggered by `githubWriteCacheQuery.ts` when new releases are detected
+
+3. **Email Queue System**:
+   - `email.ts`: Defines queue and worker for email delivery
+   - Provides reliable email sending with retries
+   - Supports general emails and formatted release notifications
+
+#### Queue Flow:
+
+1. The cron scheduler (`cron.ts`) adds jobs to the Cron Queue at regular intervals
+2. The Cron Worker processes these jobs by:
+   - Fetching repositories that need checking
+   - Using `GithubRepoCacheBuilder` to retrieve and cache GitHub data
+   - Handling rate limits and failures gracefully
+
+3. When `githubWriteCacheQuery.ts` detects new releases, it:
+   - Saves release data to the database
+   - Adds notification jobs to the Release Queue
+
+4. The Release Worker processes these notifications by:
+   - Finding users subscribed to the repository
+   - Adding email jobs to the Email Queue for each subscriber
+
+5. The Email Worker delivers notifications to users via configured SMTP server
+
+This multi-queue architecture ensures reliability through job persistence, automatic retries, and concurrency management.
+
+#### Queue Monitoring Dashboard
+
+The application includes a web-based dashboard for monitoring queue status and jobs:
+
+- **URL**: http://localhost:3000/admin/queues
+- **Default Credentials**: 
+  - Username: `admin`
+  - Password: `password`
+
+The dashboard provides visibility into all queue operations:
+- View active, completed, failed, and delayed jobs
+- Inspect job details and data
+- Retry failed jobs
+- Monitor queue performance
+
+To access a specific queue directly:
+- Cron Queue: http://localhost:3000/admin/queues/queue/cronJobs
+- Release Queue: http://localhost:3000/admin/queues/queue/releaseNotifications
+- Email Queue: http://localhost:3000/admin/queues/queue/emailQueue
+
 ### Release Notification Layer
 The release notification layer listens for PostgreSQL notifications about new releases and processes them.
 
@@ -104,11 +182,6 @@ During development, you can use the watch mode to automatically restart the serv
 pnpm run dev
 ```
 
-To run the release listener in development mode:
-
-```
-pnpm run dev:listener
-```
 
 ## API Structure
 
