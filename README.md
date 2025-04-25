@@ -1,22 +1,6 @@
-- [GitHub Release Tracker](#github-release-tracker)
-  - [Features](#features)
-  - [Project Structure](#project-structure)
-  - [Requirements](#requirements)
-  - [Getting Started](#getting-started)
-  - [Services](#services)
-    - [Docker Services](#docker-services)
-    - [Server Components](#server-components)
-    - [Root Project](#root-project)
-  - [Development](#development)
-  - [GraphQL Schema](#graphql-schema)
-  - [Limitations](#limitations)
-- [TODO](#todo)
-
-
-
 # GitHub Release Tracker
 
-A development-focused application for tracking and receiving notifications about GitHub repository releases.
+A toy application which basically replicates the watch function on github, but with extra steps. This is really only to explore the pitfalls of this architecture.
 
 ## Features
 
@@ -28,8 +12,8 @@ A development-focused application for tracking and receiving notifications about
 
 ## Project Structure
 
-- `/web` - React frontend built with Vite
-- `/server` - GraphQL API server built with Express and GraphQL Yoga
+- [/web](/web) - React frontend built with Vite
+- [/server](/server) - GraphQL API server built with Express and GraphQL Yoga
 
 ## Requirements
 
@@ -97,31 +81,7 @@ The `docker-compose.yml` file defines the following services:
   - SMTP Port: 1025
   - Web UI Port: 8025 (for viewing sent emails)
 
-### Server Components
-
-The server (`server/package.json`) includes:
-
-- Core Express/GraphQL server
-- Background workers (powered by BullMQ)
-- Scheduled cron jobs
-- Database migrations and type generation
-
-Key scripts:
-- `dev`: Sets up the database, generates types, and runs the server with workers
-- `dev:server`: Starts just the Express server
-- `dev:worker`: Runs background job workers
-- `dev:cron`: Runs scheduled tasks
-- `pgtyped`: Generates TypeScript types from SQL queries
-
-### Root Project
-
-The root project (`package.json`) coordinates the development workflow:
-
-- `dev`: Runs the server, web client, and GraphQL code generation in parallel
-- `generate`: Creates TypeScript types from GraphQL schema
-- `dev:initdb`: Initializes the database schema
-
-## Development
+## Development Workflow
 
 After starting the Docker services, you can:
 
@@ -141,17 +101,35 @@ cd web
 pnpm dev
 ```
 
-## GraphQL Schema
+## GraphQL Code Generation
 
-The GraphQL schema in the root directory defines the API contract between the server and client. Changes to the schema are automatically applied and code is generated when running in development mode.
+This project uses a centralized GraphQL schema with automatic code generation for both the server and client sides:
+
+- Schema defined once in `schema.graphql` in the project root
+- Code generation configured in `codegen.ts`
+- Automatically generates TypeScript types and Apollo hooks while in development mode
+- Run manually with `pnpm generate`
+
+The code generation system:
+1. Creates server-side resolver types at `server/src/resolvers-types.ts`
+2. Creates client-side query hooks at `web/src/api/api-generated.ts`
+
+For more information:
+- See [server documentation](/server#graphql-code-generation) for server-side type generation and resolver usage
+- See [web documentation](/web#graphql-integration) for client-side hook usage and examples
+
+## Documentation Structure
+
+This README provides a high-level overview and quickstart guide for the entire application. For detailed information:
+
+- **[Server Documentation](/server)**: Covers backend architecture, database schema, queue system, and API structure
+- **[Web Documentation](/web)**: Details frontend structure, component usage, and GraphQL client integration
 
 ## Limitations
 
-This application is limited by GitHub's API rate limits. The GitHub REST API doesn't allow a lot. If you really wanted to use this application for real, you
-would need a better strategy.
+This application is limited by GitHub's API rate limits. The GitHub REST API doesn't allow a lot of requests. If you wanted to use this application for real, you would need a better strategy.
 
-
-# TODO
+## TODO
 
 There is a good amount that would be good to do before this went into production, but will never be done because this is a toy application made to explore some new tools.
 
@@ -161,5 +139,3 @@ There is a good amount that would be good to do before this went into production
 - [ ] End to end tests.
 - [ ] More testing generally, especially on the queue stuff. I wanted to be done with this, since I spent more than intended on it, and so i basically wrote no tests for the queues.
 - [ ] Notifications for failing jobs.
-
-I'm sure there is more.

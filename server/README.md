@@ -1,8 +1,8 @@
-# gpr Server
+# GitHub Release Tracker Server
 
 ## Overview
 
-This is the server component of the gpr application, providing a GraphQL API with GitHub integration capabilities. The server handles authentication, database operations, and API interactions.
+This is the server component of the GitHub Release Tracker application, providing a GraphQL API with GitHub integration capabilities. The server handles authentication, database operations, and API interactions.
 
 ## Features
 
@@ -52,8 +52,51 @@ The server architecture consists of several interconnected layers:
 ### Express Layer
 The Express layer serves as the HTTP server foundation, handling requests, middleware, security, and session management. It orchestrates the flow of requests to the GraphQL engine and authentication services.
 
+```typescript
+// Example from src/main.ts
+const app = buildApp()
+const yoga = buildYoga()
+app.use(yoga.graphqlEndpoint, yoga)
+```
+
 ### GraphQL Layer
 The GraphQL layer provides a type-safe API interface. It leverages GraphQL Yoga to create a performant and developer-friendly GraphQL server that integrates with the Express application.
+
+## GraphQL Code Generation
+
+This server uses GraphQL Code Generator to create TypeScript types from the GraphQL schema. The workflow is:
+
+1. Schema defined in `schema.graphql` at the project root
+2. Running `pnpm generate` at the project root creates type definitions at `server/src/resolvers-types.ts`
+3. These types are used throughout the codebase for type-safe resolvers
+
+### Type-Safe Resolver Helpers
+
+The server provides custom wrapper functions in `src/lib/yoga/yogaHelpers.ts` that leverage generated types:
+
+```typescript
+// Example of typed query resolver
+export function query<K extends keyof QueryResolvers>(
+  query: K, 
+  cb: NonNullable<QueryResolvers[K]>
+): QueryResolvers[K] {
+  // implementation...
+}
+```
+
+These helpers ensure type safety while also providing error handling and performance logging:
+
+```typescript
+// Example usage in listReleasesQuery.ts
+export const listReleases = query(
+  'listReleases',
+  async (_, { repositoryUrl, includePrereleases, markViewed }, { user, pgClient }) => {
+    // Implementation with full type safety
+  }
+)
+```
+
+This pattern is used throughout the codebase to ensure type-safe GraphQL operations.
 
 ### Authentication Layer
 The authentication layer uses Passport.js with GitHub OAuth strategy to authenticate users, manage sessions, and provide secure access to the application's resources.
@@ -61,7 +104,7 @@ The authentication layer uses Passport.js with GitHub OAuth strategy to authenti
 ### Database Layer
 The database layer manages connections to PostgreSQL, handles database schema setup, and provides transaction management for data consistency.
 
-For the latest schema see (the database graph)[./database.md]
+For the latest schema details, see [the database documentation](./database.md).
 
 ### GitHub Integration Layer
 The GitHub integration layer facilitates interaction with GitHub's API and implements efficient caching strategies to optimize performance.
@@ -163,26 +206,6 @@ The release notification layer listens for PostgreSQL notifications about new re
    - More complex but offers better failure recovery
    - Start with `pnpm run dev:worker`
 
-## GraphQL Schema and Code Generation
-
-The GraphQL schema is the core definition for the API's capabilities and type system. The workflow follows:
-
-1. `schema.graphql` defines the API contract with queries, mutations, and types
-2. `graphql.config.yml` configures the GraphQL tooling to use this schema
-3. GraphQL Code Generator uses this schema to generate TypeScript types
-4. The generated types are used in `yoga.ts` to provide type safety for resolvers
-
-This code generation process ensures type consistency between the schema, resolvers, and client applications, preventing type-related bugs and providing better developer experience through autocomplete.
-
-## Development
-
-During development, you can use the watch mode to automatically restart the server:
-
-```
-pnpm run dev
-```
-
-
 ## API Structure
 
 The GraphQL API provides operations for:
@@ -191,6 +214,4 @@ The GraphQL API provides operations for:
 - GitHub repository search and interaction
 - Release tracking and filtering
 
-## License
-
-[License Information]
+For more information about the overall project setup, see the [root README](/).
