@@ -1,0 +1,9 @@
+query repositorySearch($query: String!) {
+  searchRepositories(query: $query) {
+    id
+    name
+    url
+    description
+    private
+  }
+}

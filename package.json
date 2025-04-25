@@ -1,0 +1,27 @@
+{
+  "name": "gpr",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev:initdb": "cd server && pnpm run --silent migrate:local",
+    "dev": "pnpm run --silent generate && concurrently -n 'server,web,generate' -c 'yellow.bold,green.bold,blue.bold' \"cd server && pnpm run dev\" \"cd web && pnpm run dev\" \"pnpm run generate --watch\"",
+    "generate": "graphql-codegen",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "typesync": "typesync && pnpm install",
+    "postinstall": "typesync"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@graphql-codegen/cli": "^5.0.5",
+    "@graphql-codegen/typescript": "^4.1.6",
+    "@graphql-codegen/typescript-react-apollo": "^4.3.2",
+    "@graphql-codegen/typescript-resolvers": "^4.5.0",
+    "@parcel/watcher": "^2.5.1",
+    "concurrently": "^9.1.2",
+    "typescript": "^5.8.3",
+    "typesync": "^0.12.2"
+  }
+}

@@ -1,0 +1,8 @@
+---
+description:
+globs: **/*.sql
+alwaysApply: false
+---
+Ignore linter errors. These occur because the pg language server doesn't know about pgtyped.
+
+You can see the database schema in [database.md](mdc:server/database.md) and see how it's made in [db.ts](mdc:server/src/lib/db.ts)

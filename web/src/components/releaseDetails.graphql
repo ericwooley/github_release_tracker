@@ -1,0 +1,11 @@
+query releaseDetails($url: String!, $includePrereleases: Boolean!, $markViewed: Boolean = false) {
+  listReleases(repositoryUrl: $url, includePrereleases: $includePrereleases, markViewed: $markViewed) {
+    id
+    name
+    tagName
+    prerelease
+    createdAt
+    body
+    url
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "transforms": [
+    {
+      "mode": "sql",
+      "include": "**/*.sql",
+      "emitTemplate": "{{dir}}/{{name}}.queries.ts"
+    }
+  ],
+  "srcDir": "./src/",
+  "failOnError": false,
+  "camelCaseColumnNames": false,
+  "db": {
+    "host": "localhost",
+    "port": 5759,
+    "user": "postgres",
+    "dbName": "gpr_dev",
+    "password": "postgres"
+  }
+}

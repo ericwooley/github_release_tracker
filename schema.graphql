@@ -1,0 +1,52 @@
+type Query {
+  getCurrentUser: CurrentUser
+  searchRepositories(query: String!): [Repository!]
+  listReleases(repositoryUrl: String!, includePrereleases: Boolean!, markViewed: Boolean = false): [Release!]
+  listSubscriptions: [Subscription!]
+}
+
+type Mutation {
+  followRepository(repositoryUrl: String!): MutationSuccess!
+  unfollowRepository(repositoryUrl: String!): MutationSuccess!
+}
+
+type ErrorMessage {
+  message: String
+}
+type MutationSuccess {
+  success: Boolean!
+  error: ErrorMessage
+}
+
+type Release {
+  id: Int!
+  name: String!
+  tagName: String!
+  prerelease: Boolean!
+  createdAt: String!
+  body: String!
+  url: String!
+}
+
+type Repository {
+  id: Int!
+  name: String!
+  url: String!
+  description: String
+  private: Boolean
+  releases: [Release]
+}
+
+type CurrentUser {
+  id: String
+  username: String
+  avatar: String
+  displayName: String
+}
+
+type Subscription {
+  id: String!
+  hasUpdated: Boolean!
+  owner: String!
+  repo: String!
+}

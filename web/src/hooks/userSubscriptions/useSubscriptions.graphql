@@ -1,0 +1,27 @@
+mutation subscribeToRepo($url: String!) {
+  followRepository(repositoryUrl: $url) {
+    success
+    error {
+      message
+    }
+  }
+}
+
+
+mutation unsubscribeToRepo($url: String!) {
+  unfollowRepository(repositoryUrl: $url) {
+    success
+    error {
+      message
+    }
+  }
+}
+
+query getSubscriptions {
+  listSubscriptions {
+    id
+    hasUpdated
+    owner
+    repo
+  }
+}

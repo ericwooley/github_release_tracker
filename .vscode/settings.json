@@ -1,0 +1,9 @@
+{
+  "vitest.cliArguments": "--timeout=999999",
+  "vscode-postgres.defaultDatabase": "",
+  "plpgsqlLanguageServer.database": "gpr_dev",
+  "plpgsqlLanguageServer.definitionFiles": ["**/*.psql", "**/*.pgsql", "**/*.sql"],
+  "plpgsqlLanguageServer.password": "postgres",
+  "plpgsqlLanguageServer.port": 5759,
+  "plpgsqlLanguageServer.user": "postgres"
+}
