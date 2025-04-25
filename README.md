@@ -133,7 +133,7 @@ This application is limited by GitHub's API rate limits. The GitHub REST API doe
 
 There is a good amount that would be good to do before this went into production, but will never be done because this is a toy application made to explore some new tools.
 
-- [ ] Validation of inputs is not great. Ideally validation should be enforced through `server/src/lib/yoga/yogaHelpers.ts`
+- [ ] Validation of inputs is not great. Ideally validation should be enforced through `server/src/lib/yoga/yogaHelpers.ts` using a zod schema or something.
 - [ ] A build script which builds web, then copies the output to a public folder in server, and routes for the server to serve those public files.
 - [ ] Figure out a higher limit on the github api.
 - [ ] End to end tests.
